@@ -1,0 +1,6 @@
+{
+    "<start>": ["<template1>"],
+    "<template1>": "The `assembleFishName()` only has one known predator: the `assembleFishName()`",
+    "<template2>": "The <fish> is the <ordinal><superlative> creature known to man.",
+    "<ordinal>": ["second-", "third-", "fourth-", "", "fifth-", "sixth-", "twelfth-"]
+}
