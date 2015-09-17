@@ -2,6 +2,7 @@ var _ = require('underscore');
 _.mixin( require('underscore.deferred') );
 
 var rita = require('rita');
+var ritaCore = rita.RiTa;
 var Twit = require('twit');
 var T = new Twit(require('./config.js'));
 var wordfilter = require('wordfilter');
@@ -12,7 +13,7 @@ var corpora = require('corpora-project');
 
 
 var rg = rita.RiGrammar();
-
+var lex = rita.RiLexicon();
 
 
 Array.prototype.pick = function() {
@@ -24,56 +25,87 @@ Array.prototype.pickRemove = function() {
   return this.splice(index,1)[0];
 };
 
+function getCanonicals(array) {
+  var canonicals = array.map(function(index) {
+    url = "http://api.wordnik.com/v4/word.json/"
+      + index
+      + "?useCanonical=true&includeSuggestions=false&api_key="
+      + wordnikKey;
 
-var getAdjsURL =  "http://api.wordnik.com/v4/words.json/randomWords?" +
-                  "hasDictionaryDef=true&includePartOfSpeech=adjective&limit=2&" +
-                  "minCorpusCount=100&api_key=" + wordnikKey;
+    rest.get(url, function(data) {
+      console.log(data);
+      if (data["word"]) {
+        return data["word"];
+      } else {
+        return index;
+      }
+    }, "json");
+  });
 
+  return canonicals;
+}
 
-function getNouns() {
+function wordnikRequest(partOfSpeech) {
   var d = new _.Deferred();
+  var url;
+  if (partOfSpeech == "noun") {
+    url = "http://api.wordnik.com/v4/words.json/randomWords?" +
+      "minCorpusCount=1000&minDictionaryCount=20&" +
+      "excludePartOfSpeech=proper-noun,proper-noun-plural,proper-noun-posessive,suffix,family-name,idiom,affix&" +
+      "hasDictionaryDef=true&includePartOfSpeech=noun&limit=10&maxLength=12&" +
+      "api_key=" + wordnikKey;
+  } else {
+    url = "http://api.wordnik.com/v4/words.json/randomWords?" +
+      "hasDictionaryDef=true&includePartOfSpeech=" + partOfSpeech + "&limit=10&" +
+      "minCorpusCount=100&minDictionaryCount=1&api_key=" + wordnikKey;
+  }
 
-  var nounsUrl = "http://api.wordnik.com/v4/words.json/randomWords?" +
-    "minCorpusCount=1000&minDictionaryCount=20&" +
-    "excludePartOfSpeech=proper-noun,proper-noun-plural,proper-noun-posessive,suffix,family-name,idiom,affix&" +
-    "hasDictionaryDef=true&includePartOfSpeech=noun&limit=10&maxLength=12&" +
-    "api_key=" + wordnikKey;
-  var nouns = []
-
-  rest.get(nounsUrl, function(data) {
+  var results = []
+  rest.get(url, function(data) {
     for (var i = 0; i < data.length; i++) {
-      nouns.push(data[i].word);
+      results.push(data[i].word);
     };
-    d.resolve(nouns);
+    d.resolve(results);
   }, "json");
 
   return d.promise();
+}
+
+function riLexRequest(partOfSpeech) {
+  var words = [];
+  for (var i = 0; i < 10; i++) {
+    words.push(lex.randomWord(partOfSpeech));
+  };
+  return words;
+}
+
+function getNouns() {
+  return wordnikRequest("noun");
 };
 
 function getAdjectives() {
-  var d = new _.Deferred();
-
-  var adjectivesUrl = "http://api.wordnik.com/v4/words.json/randomWords?" +
-    "hasDictionaryDef=true&includePartOfSpeech=adjective&limit=2&" +
-    "minCorpusCount=100&api_key=" + wordnikKey;
-
-  var adjectives = []
-
-  rest.get(adjectivesUrl, function(data) {
-    for (var i = 0; i < data.length; i++) {
-      adjectives.push(data[i].word);
-    };
-    d.resolve(adjectives);
-  }, "json");
-
-  return d.promise();
+  return wordnikRequest("adjective");
 };
 
-function getSuperlatives() {
-  var dfd = new _.Deferred();
-  dfd.resolve("slimiest");
-  return dfd.promise();
+// function getIntVerbs() {
+//   return wordnikRequest("verb-intransitive");
+// };
+
+function getPresentVerbs() {
+  return riLexRequest('vbz');
 }
+
+function getGerunds() {
+  return riLexRequest('vbg');
+}
+
+function getSuperlatives() {
+  var superlatives = [];
+  for (var i = 0; i < 10; i++) {
+    superlatives.push(lex.randomWord('jjs'));
+  };
+  return superlatives;
+};
 
 function getObjects() {
   var objects = corpora.getFile("objects", "objects")["objects"];
@@ -83,17 +115,13 @@ function getObjects() {
   });
 
   var singularWord = singleWord.map(function(index, elem) {
-    return rita.RiTa.singularize(index);
+    return ritaCore.singularize(index);
   });
   return singularWord;
 }
 
 function getBodyParts() {
   var objects = corpora.getFile("humans", "bodyParts")["bodyParts"];
-  var pluralized = objects.map(function(index, elem) {
-    return rita.RiTa.pluralize(index);
-  });
-
   var nonHumanBodyParts = [
     "exoskeletons",
     "shells",
@@ -105,40 +133,55 @@ function getBodyParts() {
     "tentacles"
   ];
 
-
-  return pluralized.concat(nonHumanBodyParts);
+  return objects.concat(nonHumanBodyParts);
 }
 
 function generate() {
   var dfd = new _.Deferred();
+  var present = {
+    tense: ritaCore.PRESENT_TENSE,
+    number: ritaCore.SINGULAR,
+    person: ritaCore.THIRD_PERSON
+  };
+
   _.when(
     getNouns(),
     getSuperlatives(),
     getObjects(),
     getAdjectives(),
-    getBodyParts()
+    getBodyParts(),
+    getPresentVerbs(),
+    getGerunds()
+  ).done(function(
+      nouns,
+      superlatives,
+      objects,
+      adjectives,
+      bodyParts,
+      presentVerbs,
+      gerunds)
+    {
 
-  ).done(function(nouns, superlatives, objects, adjectives, bodyParts) {
     var rules = {
       "<start>": [
-          "The <fish> only has one known predator: the <fish>",
-          "You've never seen anything <verb> like the <fish>.",
-          "The <fish> has <adjective> <bodyparts>"
+          "The <fish> only has one known predator: the <fish>.",
+          "The <fish> <verbs> by <verbing> its <bodyparts>.",
+          "The <fish> has <adjective> <bodyparts>."
         ],
 
-      "<fish>": ["<noun> <fishtype> [4]", "sea <object>"],
+      "<fish>": ["<noun> <fishtype> [5]", "sea <object>"],
       "<fishtype>": ["fish [4]", "ray", "toad", "squid", "shark", "eel", "lobster", "worm"],
       "<noun>": nouns,
       "<object>": objects,
       "<adjective>": adjectives,
       "<bodyparts>": bodyParts,
-      "<verb>": "be a fish"
+      "<verbs>": presentVerbs,
+      "<verbing>": gerunds
     };
 
     rg.load(rules);
     dfd.resolve(rg.expand());
   });
-
   return dfd.promise();
 }
 
@@ -188,7 +231,7 @@ setInterval(function () {
   }
 }, 1000 * 60 * 60);
 
-// Tweet once on initialization
+// // Tweet once on initialization
 for (var i = 0; i < 30; i++) {
   tweet();
 };
