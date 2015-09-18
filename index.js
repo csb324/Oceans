@@ -4,7 +4,18 @@ _.mixin( require('underscore.deferred') );
 var rita = require('rita');
 var ritaCore = rita.RiTa;
 var Twit = require('twit');
-var T = new Twit(require('./config.js'));
+var T;
+if (process.env.NODE_ENV == "production") {
+  T = new Twit({
+    consumer_key:         process.env.CONSUMER_KEY,
+    consumer_secret:      process.env.CONSUMER_SECRET,
+    access_token:         process.env.ACCESS_TOKEN,
+    access_token_secret:  process.env.ACCESS_TOKEN_SECRET
+  })
+} else {
+  T = new Twit(require('./config.js'));
+};
+
 var wordfilter = require('wordfilter');
 var ent = require('ent');
 var rest = require('node-restclient');
