@@ -128,11 +128,6 @@ function pluralize(array) {
 
 function generate() {
   var dfd = new _.Deferred();
-  var present = {
-    tense: ritaCore.PRESENT_TENSE,
-    number: ritaCore.SINGULAR,
-    person: ritaCore.THIRD_PERSON
-  };
 
   _.when(
     getNouns(),
@@ -255,11 +250,9 @@ function generate() {
 function tweet() {
   generate().then(function(rg) {
 
-    for (var i = 0; i < 5; i++) {
-      var myTweet = rg.expand();
-      if (!wordfilter.blacklisted(myTweet)) {
-        console.log(myTweet);
-      };
+    var myTweet = rg.expand();
+    if (!wordfilter.blacklisted(myTweet)) {
+      console.log(myTweet);
     };
 
   });
@@ -301,9 +294,4 @@ setInterval(function () {
     console.log(e);
   }
 }, 1000 * 60 * 60);
-
-
-for (var i = 0; i < 4; i++) {
-  tweet();
-};
 
