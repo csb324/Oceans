@@ -25,26 +25,6 @@ Array.prototype.pickRemove = function() {
   return this.splice(index,1)[0];
 };
 
-function getCanonicals(array) {
-  var canonicals = array.map(function(index) {
-    url = "http://api.wordnik.com/v4/word.json/"
-      + index
-      + "?useCanonical=true&includeSuggestions=false&api_key="
-      + wordnikKey;
-
-    rest.get(url, function(data) {
-      console.log(data);
-      if (data["word"]) {
-        return data["word"];
-      } else {
-        return index;
-      }
-    }, "json");
-  });
-
-  return canonicals;
-}
-
 function wordnikRequest(partOfSpeech) {
   var d = new _.Deferred();
   var url;
@@ -87,10 +67,6 @@ function getAdjectives() {
   return wordnikRequest("adjective");
 };
 
-// function getIntVerbs() {
-//   return wordnikRequest("verb-intransitive");
-// };
-
 function getPresentVerbs() {
   return riLexRequest('vbz');
 }
@@ -100,11 +76,15 @@ function getGerunds() {
 }
 
 function getSuperlatives() {
-  var superlatives = [];
-  for (var i = 0; i < 10; i++) {
-    superlatives.push(lex.randomWord('jjs'));
-  };
-  return superlatives;
+  return riLexRequest('jjs');
+};
+
+function getComparatives() {
+  return riLexRequest('jjr');
+};
+
+function getBaseVerbs() {
+  return riLexRequest('vb');
 };
 
 function getObjects() {
@@ -136,6 +116,16 @@ function getBodyParts() {
   return objects.concat(nonHumanBodyParts);
 }
 
+function pluralize(array) {
+  return array.map(function(index, elem) {
+    if (index.charAt(index.length - 1) == "s") {
+      return index;
+    }else{
+      return ritaCore.pluralize(index);
+    };
+  });
+}
+
 function generate() {
   var dfd = new _.Deferred();
   var present = {
@@ -149,48 +139,129 @@ function generate() {
     getSuperlatives(),
     getObjects(),
     getAdjectives(),
+    getComparatives(),
     getBodyParts(),
     getPresentVerbs(),
+    getBaseVerbs(),
     getGerunds()
+
   ).done(function(
-      nouns,
-      superlatives,
-      objects,
-      adjectives,
-      bodyParts,
-      presentVerbs,
-      gerunds)
-    {
+    nouns,
+    superlatives,
+    objects,
+    adjectives,
+    comparatives,
+    bodyParts,
+    presentVerbs,
+    baseVerbs,
+    gerunds
+  ) {
+
+    var animals = corpora.getFile("animals", "common")["animals"];
+    var countries = corpora.getFile("geography", "countries")["countries"];
+    var menuItems = corpora.getFile("foods", "menuItems")["menuItems"];
+    var moods = corpora.getFile("humans", "moods")["moods"];
 
     var rules = {
-      "<start>": [
-          "The <fish> only has one known predator: the <fish>.",
-          "The <fish> <verbs> by <verbing> its <bodyparts>.",
-          "The <fish> has <adjective> <bodyparts>."
+
+      "<start>": ["<fact> [10]", "<fact> #<hashtag> [2]", "DID YOU KNOW: <fact>"],
+      "<fact>": [
+          "<theFish> only has one known predator: <det> <fish>.",
+          "<theFish> <verbs> by <verbing> its <bodypart>.",
+          "<theFish> uses its <adjective> <bodypart> to <fishyPhrase>",
+          "<theFish> has <adjective> <bodyparts>.",
+          "<theFish> is <number> times <comparativeAdj> than a <objectOrAnimal>, and <number> times <comparativeAdj>.",
+          "The moment they are born, the <fish> can already <verb> more than most <animals>.",
+
+          "<theFish> is the <superlative> creature known to man.",
+
+          "<theFish> is known for its <number> <adjective> <bodyparts>.",
+          "The <fish> is <adjective>, but it is said to taste like <menuItem>.",
+
+          "<theFish> <alwaysNever> <verbs>.",
+          "<theFish> <alwaysNever> <modal> to <fishyPhrase>.",
+
+          "The <fish> looks like a <broadObject> crossed with a <broadObject>.",
+          "If you visit <country>, make sure to look for the world's <superlative> animal: The <fish>.",
+
+          "<theFish> <being> <comparativePhrase>",
+
+          "<menuItem> makes up almost <number> percent of the <fish>'s diet.",
         ],
 
-      "<fish>": ["<noun> <fishtype> [5]", "sea <object>"],
+      "<theFish>": [
+        "Because of its <adjective> <bodypart>, the <fish>",
+        "The <fish> [5]",
+        "In <country>, the <fish>",
+        "In order to <fishyPhrase>, the <fish>",
+        "Studies <showing> that the <fish>",
+        "Next time you feel <mood>, remember that the <fish>",
+      ],
+
+      "<fish>": ["<noun> <fishtype> [4]", "<sea> <object>", "<sea> <animal>", "<adjective> <fish>"],
+      "<sea>": ["sea", "deep-sea", "underwater"],
       "<fishtype>": ["fish [4]", "ray", "toad", "squid", "shark", "eel", "lobster", "worm"],
+      "<fishyPhrase>": "<fishyVerb> <fishyObject>",
+      "<fishyVerb>": ["protect", "defend", "return to", "devour", "digest", "blend in with", "attract", "seduce", "hide from", "identify", "detect", "escape", "call out to", "sing to", "sneak up on"],
+      "<fishyObject>": ["its habitat", "its home", "its next meal", "its prey", "its eggs", "its mate", "itself", "its food", "its surroundings", "predators", "its young"],
+
       "<noun>": nouns,
       "<object>": objects,
+      "<animal>": animals,
+      "<animals>": pluralize(animals),
+      "<menuItem>": menuItems,
+      "<country>": countries,
+      "<broadObject>": ["<menuItem>", "<object>", "<adjective> <object>"],
+      "<objectOrAnimal>": ["<object>", "<animal>"],
+
+      "<bodypart>": bodyParts,
+      "<bodyparts>": pluralize(bodyParts),
+
+      "<alwaysNever>": ["always", "never", "almost always", "almost never"],
+
+      "<comp>": ["as", "more", "less"],
+      "<adjectiveEr>": comparatives,
+      "<comparativeAdj>": ["<adjectiveEr>", "<comp> <adjective>"],
+      "<comparativePhrase>": [
+        "<number> times <comparativeAdj> than <det> <objectOrAnimal>",
+        "<comparativeAdj> than <det> <objectOrAnimal>",
+        "<comparativeAdj> than most <animals>"
+      ],
+
+      "<det>": ["a", "the", "your average", "the average", "the <superlative>", "a <adjective>"],
+
+      "<superlative>": superlatives,
       "<adjective>": adjectives,
-      "<bodyparts>": bodyParts,
+      "<mood>": moods,
+
       "<verbs>": presentVerbs,
-      "<verbing>": gerunds
+      "<verb>": baseVerbs,
+      "<verbing>": gerunds,
+      "<being>": ["is", "could be", "might be", "cannot be", "was once", "evolved to be"],
+      "<showing>": ["show", "suggest", "prove", "indicate"],
+      "<modal>": ["has", "gets", "needs"],
+
+      "<number>": ["three", "four", "five", "six", "seven", "eight", "nine", "ten", "200", "300", "50", "100,000", "several thousand"],
+      "<hashtag>": ["oceanfacts", "cool", "wow", "amazing", "ocean", "weirdocean", "incredible", "fact", "incredible", "nature", "facts", "realfacts", "omg"]
     };
 
     rg.load(rules);
-    dfd.resolve(rg.expand());
+    dfd.resolve(rg);
   });
   return dfd.promise();
 }
 
 
 function tweet() {
-  generate().then(function(myTweet) {
-    if (!wordfilter.blacklisted(myTweet)) {
-      console.log(myTweet);
-    }
+  generate().then(function(rg) {
+
+    for (var i = 0; i < 5; i++) {
+      var myTweet = rg.expand();
+      if (!wordfilter.blacklisted(myTweet)) {
+        console.log(myTweet);
+      };
+    };
+
   });
 }
 
@@ -231,8 +302,8 @@ setInterval(function () {
   }
 }, 1000 * 60 * 60);
 
-// // Tweet once on initialization
-for (var i = 0; i < 30; i++) {
+
+for (var i = 0; i < 4; i++) {
   tweet();
 };
 
