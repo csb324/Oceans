@@ -128,7 +128,6 @@ function pluralize(array) {
 
 function generate() {
   var dfd = new _.Deferred();
-
   _.when(
     getNouns(),
     getSuperlatives(),
@@ -253,6 +252,11 @@ function tweet() {
     var myTweet = rg.expand();
     if (!wordfilter.blacklisted(myTweet)) {
       console.log(myTweet);
+
+      T.post('statuses/update', { status: myTweet }, function(err, reply) {
+        console.log("error: " + err);
+        console.log("reply: " + reply);
+      });
     };
   });
 }
@@ -294,3 +298,4 @@ setInterval(function () {
   }
 }, 1000 * 60 * 60);
 
+tweet();
