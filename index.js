@@ -254,7 +254,6 @@ function tweet() {
     if (!wordfilter.blacklisted(myTweet)) {
       console.log(myTweet);
     };
-
   });
 }
 
